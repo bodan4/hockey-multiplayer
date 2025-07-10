@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Hockey Multiplayer</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #121212; color: #fff; font-family: sans-serif; }
+    canvas { display: block; margin: auto; background: #1e1e1e; border: 4px solid #fff; border-radius: 12px; }
+    #leaderboard { position: absolute; top: 10px; right: 10px; background: #222; padding: 10px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <div id="leaderboard">
+    <h3>Leaderboard</h3>
+    <ul id="scores"></ul>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const socket = new WebSocket('ws://localhost:8080');
+
+    let playerId;
+    let gameState = {};
+
+    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    document.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+    document.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+    function sendInput() {
+      socket.send(JSON.stringify({ type: 'input', keys }));
+    }
+
+    function drawGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!gameState.players) return;
+
+      // Puck
+      ctx.beginPath();
+      ctx.arc(gameState.puck.x, gameState.puck.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#f00';
+      ctx.fill();
+
+      // Players
+      for (let id in gameState.players) {
+        const p = gameState.players[id];
+        ctx.fillStyle = id === playerId ? '#0f0' : '#00f';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Scores
+      const scoreList = document.getElementById('scores');
+      scoreList.innerHTML = '';
+      for (let id in gameState.scores) {
+        const li = document.createElement('li');
+        li.textContent = `Player ${id === playerId ? '(You)' : id}: ${gameState.scores[id]}`;
+        scoreList.appendChild(li);
+      }
+    }
+
+    socket.addEventListener('message', event => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'init') {
+        playerId = data.id;
+      } else if (data.type === 'state') {
+        gameState = data.state;
+        drawGame();
+      }
+    });
+
+    setInterval(() => {
+      sendInput();
+    }, 1000 / 60);
+  </script>
+</body>
+</html>
